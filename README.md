@@ -1,85 +1,104 @@
-# Code Review Config — Portable Package
+# Code Review Config
 
-Multi-model code review pipeline for any GitHub repo. Three layers of automated review on every PR, plus periodic deep audits.
+Multi-model code review pipeline for any GitHub repo. Three layers of automated review on every PR, plus weekly deep audits.
 
-## What's Included
+## Setup (one command)
 
-| File | Purpose |
-|------|---------|
-| `reusable-review.yml` | Reusable workflow — static checks + Codex logic + Claude convention |
-| `reusable-audit.yml` | Reusable workflow — periodic codebase audit |
-| `caller-review.yml` | Template — copy to consuming repo for PR reviews |
-| `caller-audit.yml` | Template — copy to consuming repo for weekly audits |
-| `REVIEW.md.template` | Template — project-specific review rules |
-| `setup.sh` | One-command setup for any repo |
-
-## Quick Start
-
-### Option A: Setup Script
+From any repo root:
 
 ```bash
-# In any repo:
-bash setup.sh
+curl -sL https://raw.githubusercontent.com/nbtee/code-review-config/main/setup.sh | bash
 ```
 
-### Option B: Manual
+This will:
+1. Install PR review workflow (static checks + Codex logic + Claude conventions)
+2. Optionally install weekly deep audit (Monday 2am UTC)
+3. Create `REVIEW.md` template for your project conventions
+4. Add API key references to `.env.local` (commented, for local reference)
+5. Prompt to set GitHub secrets
+6. Print a checklist of what to do next
 
-1. Copy `caller-review.yml` → `.github/workflows/code-review.yml`
-2. Copy `caller-audit.yml` → `.github/workflows/weekly-audit.yml`
-3. Copy `REVIEW.md.template` → `REVIEW.md` and customise
-4. Set secrets: `gh secret set ANTHROPIC_API_KEY` + `gh secret set OPENAI_API_KEY`
+## What It Does
 
-## Extracting to Standalone Repo
+### On Every PR (3-layer review)
 
-To use `workflow_call` across repos, these reusable workflows must live in their own public repo:
+| Layer | What | Cost |
+|-------|------|------|
+| **Static checks** | `tsc --noEmit` + `eslint` | Free |
+| **Codex logic review** | OpenAI Codex scans for bugs, security issues, edge cases | ~$0.20/PR |
+| **Claude convention review** | Claude checks PR against your `REVIEW.md` conventions | ~$0.35/PR |
 
-```bash
-# Create the config repo
-gh repo create nbtee/code-review-config --public
-cd code-review-config
+### Weekly Audit (Monday 2am UTC)
 
-# Copy reusable workflows
-mkdir -p .github/workflows
-cp reusable-review.yml .github/workflows/
-cp reusable-audit.yml .github/workflows/
+Claude Opus deep-scans the full codebase for dead code, architecture drift, security gaps, and type safety issues. Creates a GitHub issue with structured findings.
 
-# Copy templates and setup
-cp REVIEW.md.template .
-cp setup.sh .
-cp README.md .
+## Manual Setup
 
-git add -A && git commit -m "Initial reusable review workflows"
-git push
-```
+If you prefer not to use the setup script:
 
-Then consuming repos reference:
-```yaml
-uses: nbtee/code-review-config/.github/workflows/reusable-review.yml@main
-```
+1. Copy workflows:
+   ```bash
+   mkdir -p .github/workflows
+   curl -sL https://raw.githubusercontent.com/nbtee/code-review-config/main/caller-review.yml > .github/workflows/code-review.yml
+   curl -sL https://raw.githubusercontent.com/nbtee/code-review-config/main/caller-audit.yml > .github/workflows/weekly-audit.yml
+   ```
+
+2. Create review conventions:
+   ```bash
+   curl -sL https://raw.githubusercontent.com/nbtee/code-review-config/main/REVIEW.md.template > REVIEW.md
+   # Edit REVIEW.md to match your project
+   ```
+
+3. Set GitHub secrets:
+   ```bash
+   gh secret set ANTHROPIC_API_KEY
+   gh secret set OPENAI_API_KEY
+   ```
+
+4. Commit and push:
+   ```bash
+   git add .github/ REVIEW.md
+   git commit -m "feat: add code review pipeline"
+   git push
+   ```
+
+## Secrets
+
+| Secret | Required | Purpose |
+|--------|----------|---------|
+| `ANTHROPIC_API_KEY` | Yes | Claude convention review + weekly audit |
+| `OPENAI_API_KEY` | Yes (or set `run-codex: false`) | Codex logic review |
+| `SLACK_WEBHOOK_URL` | No | Slack notifications for weekly audit |
 
 ## Configuration
 
-### Inputs (PR Review)
+### PR Review Inputs
 
 | Input | Default | Description |
 |-------|---------|-------------|
 | `run-static` | `true` | Run tsc + lint |
 | `run-codex` | `true` | Codex logic review |
 | `run-claude` | `true` | Claude convention review |
-| `claude-model` | `claude-sonnet-4-6` | Claude model |
-| `claude-max-turns` | `10` | Max Claude turns |
+| `claude-model` | `claude-sonnet-4-6` | Claude model for convention review |
+| `claude-max-turns` | `10` | Max Claude turns per review |
 | `node-version` | `20` | Node.js version |
 | `package-manager` | `pnpm` | pnpm, npm, or yarn |
-| `review-conventions` | `REVIEW.md` | Path to review rules |
+| `review-conventions` | `REVIEW.md` | Path to your project review rules |
 
-### Inputs (Audit)
+### Weekly Audit Inputs
 
 | Input | Default | Description |
 |-------|---------|-------------|
-| `claude-model` | `claude-sonnet-4-6` | Claude model |
+| `claude-model` | `claude-sonnet-4-6` | Claude model for audit |
 | `claude-max-turns` | `30` | Max turns |
-| `skip-paths` | `""` | Comma-separated skip paths |
-| `issue-label` | `audit` | GitHub issue label |
+| `skip-paths` | `""` | Comma-separated paths to skip |
+| `issue-label` | `audit` | GitHub issue label for findings |
+
+## Repos Using This
+
+- [potentia-hub](https://github.com/nbtee/potentia-hub) — Aptus learning platform
+- [learntechfast](https://github.com/nbtee/learntechfast)
+- [watch_agent](https://github.com/nbtee/watch_agent)
 
 ## Cost Estimate (~20 PRs/month)
 
@@ -90,10 +109,3 @@ uses: nbtee/code-review-config/.github/workflows/reusable-review.yml@main
 | Claude convention review | ~$0.20–0.50 | ~$6–10 |
 | Weekly audit | ~$2–5 | ~$10–20 |
 | **Total** | | **~$20–36** |
-
-## Secrets Required
-
-| Secret | Required For |
-|--------|-------------|
-| `ANTHROPIC_API_KEY` | Claude review + audit |
-| `OPENAI_API_KEY` | Codex review (optional) |
