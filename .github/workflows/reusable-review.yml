@@ -38,7 +38,7 @@ on:
       claude-model:
         description: "Claude model for convention review"
         type: string
-        default: "claude-sonnet-4-6"
+        default: "claude-opus-4-6"
       claude-max-turns:
         description: "Max turns for Claude review"
         type: number

@@ -79,7 +79,7 @@ If you prefer not to use the setup script:
 | `run-static` | `true` | Run tsc + lint |
 | `run-codex` | `true` | Codex logic review |
 | `run-claude` | `true` | Claude convention review |
-| `claude-model` | `claude-sonnet-4-6` | Claude model for convention review |
+| `claude-model` | `claude-opus-4-6` | Claude model for convention review |
 | `claude-max-turns` | `10` | Max Claude turns per review |
 | `node-version` | `20` | Node.js version |
 | `package-manager` | `pnpm` | pnpm, npm, or yarn |
@@ -89,7 +89,7 @@ If you prefer not to use the setup script:
 
 | Input | Default | Description |
 |-------|---------|-------------|
-| `claude-model` | `claude-sonnet-4-6` | Claude model for audit |
+| `claude-model` | `claude-opus-4-6` | Claude model for audit |
 | `claude-max-turns` | `30` | Max turns |
 | `skip-paths` | `""` | Comma-separated paths to skip |
 | `issue-label` | `audit` | GitHub issue label for findings |
