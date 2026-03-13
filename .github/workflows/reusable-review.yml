@@ -31,6 +31,10 @@ on:
         description: "Enable Codex logic review"
         type: boolean
         default: true
+      codex-model:
+        description: "OpenAI model for Codex logic review"
+        type: string
+        default: "gpt-5.4-codex"
       run-claude:
         description: "Enable Claude convention review"
         type: boolean
@@ -121,6 +125,7 @@ jobs:
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          model: ${{ inputs.codex-model }}
           prompt: |
             This is PR #${{ github.event.pull_request.number }} for ${{ github.repository }}.
 
