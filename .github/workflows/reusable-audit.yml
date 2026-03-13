@@ -1,0 +1,85 @@
+# Reusable Weekly Audit Workflow
+#
+# Call from any repo with a cron + manual trigger.
+#
+# Usage in consuming repo:
+#   jobs:
+#     audit:
+#       uses: nbtee/code-review-config/.github/workflows/reusable-audit.yml@main
+#       with:
+#         skip-paths: "temp/,_generated/"
+#       secrets:
+#         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+name: Reusable Weekly Audit
+
+on:
+  workflow_call:
+    inputs:
+      claude-model:
+        description: "Claude model for audit"
+        type: string
+        default: "claude-sonnet-4-6"
+      claude-max-turns:
+        description: "Max turns for audit"
+        type: number
+        default: 30
+      skip-paths:
+        description: "Comma-separated paths to skip (e.g. 'temp/,_generated/')"
+        type: string
+        default: ""
+      issue-label:
+        description: "Label for audit issues"
+        type: string
+        default: "audit"
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: true
+
+# Only one audit at a time
+concurrency:
+  group: weekly-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Run a comprehensive code audit of this repository.
+
+            If CLAUDE.md exists, read it for project conventions and standards.
+            If REVIEW.md exists, read it for review-specific rules.
+
+            Audit these categories:
+
+            1. **Dead code** — unused exports, orphaned components, unreachable routes
+               Search for: exported functions/components not imported anywhere else
+            2. **Architecture drift** — files in wrong folders, imports crossing module boundaries
+               Check: folder structure matches documented conventions
+            3. **Security** — auth checks on all API routes, no exposed secrets, input validation
+               Scan: API route files for missing auth checks
+            4. **Convention compliance** — component usage, CSS patterns, naming conventions
+               Sample: 10-15 recently modified files
+            5. **Type safety** — `as any`, `@ts-ignore`, unsafe casts
+               Search: grep for these patterns across the codebase
+
+            Skip paths: ${{ inputs.skip-paths }}
+
+            Output a structured audit report. Create a GitHub issue with:
+            - Title: "Weekly Audit Report — [today's date]"
+            - Label: "${{ inputs.issue-label }}"
+            - Body: findings grouped by category, with file paths and severity
+
+            Keep findings actionable. Be specific about file paths and line numbers.
+          claude_args: "--max-turns ${{ inputs.claude-max-turns }} --model ${{ inputs.claude-model }} --allowedTools Bash,Read,Glob,Grep"

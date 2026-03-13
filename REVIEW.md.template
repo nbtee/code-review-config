@@ -1,0 +1,24 @@
+# Code Review Guidelines — [Project Name]
+
+## Always Check
+
+- New API routes have auth checks
+- Database queries use parameterised values (no string interpolation)
+- Client components have `"use client"` directive when using hooks/state/effects
+- Server actions validate inputs before DB operations
+- No hardcoded app name, URLs, or feature flags — use central config
+- No raw `<button>`, `<input>`, `<a>` elements — use component library equivalents
+
+## Convention Violations (flag as NIT)
+
+- [Add your project-specific conventions here]
+- Example: Raw `<div>` for layout instead of layout components
+- Example: CSS variables without proper prefix
+- Example: Missing component naming convention
+
+## Skip
+
+- [Add paths to skip during review]
+- Example: `temp/` — working files, not production code
+- Example: `_generated/` — auto-generated files
+- Lock files

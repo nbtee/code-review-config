@@ -1,0 +1,203 @@
+# Reusable Code Review Workflow
+#
+# Call from any repo with a 3-line caller workflow.
+# See setup.sh for one-command installation.
+#
+# Usage in consuming repo:
+#   jobs:
+#     review:
+#       uses: nbtee/code-review-config/.github/workflows/reusable-review.yml@main
+#       with:
+#         run-codex: true
+#         run-claude: true
+#       secrets:
+#         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+#         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+name: Reusable Code Review
+
+on:
+  workflow_call:
+    inputs:
+      review-conventions:
+        description: "Path to REVIEW.md in the calling repo"
+        type: string
+        default: "REVIEW.md"
+      run-static:
+        description: "Run static checks (tsc + lint)"
+        type: boolean
+        default: true
+      run-codex:
+        description: "Enable Codex logic review"
+        type: boolean
+        default: true
+      run-claude:
+        description: "Enable Claude convention review"
+        type: boolean
+        default: true
+      claude-model:
+        description: "Claude model for convention review"
+        type: string
+        default: "claude-sonnet-4-6"
+      claude-max-turns:
+        description: "Max turns for Claude review"
+        type: number
+        default: 10
+      node-version:
+        description: "Node.js version for static checks"
+        type: number
+        default: 20
+      package-manager:
+        description: "Package manager (pnpm, npm, yarn)"
+        type: string
+        default: "pnpm"
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: false
+      OPENAI_API_KEY:
+        required: false
+
+# Cancel previous runs for the same PR
+concurrency:
+  group: code-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # ─── Layer 1: Static Checks (free, ~30s) ──────────────────
+  static-checks:
+    if: inputs.run-static
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - if: inputs.package-manager == 'pnpm'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: ${{ inputs.package-manager }}
+
+      - name: Install dependencies
+        run: |
+          case "${{ inputs.package-manager }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            npm)  npm ci ;;
+            yarn) yarn install --frozen-lockfile ;;
+          esac
+
+      - name: TypeScript type check
+        run: ${{ inputs.package-manager }} tsc --noEmit
+        continue-on-error: false
+
+      - name: Lint
+        run: ${{ inputs.package-manager }} lint
+        continue-on-error: false
+
+  # ─── Layer 2: Codex Logic Review (~$0.10–0.30) ────────────
+  codex-review:
+    if: inputs.run-codex && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    outputs:
+      final_message: ${{ steps.codex.outputs.final-message }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+
+      - name: Fetch PR refs
+        run: |
+          git fetch --no-tags origin \
+            ${{ github.event.pull_request.base.ref }} \
+            +refs/pull/${{ github.event.pull_request.number }}/head
+
+      - name: Codex Logic Review
+        id: codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt: |
+            This is PR #${{ github.event.pull_request.number }} for ${{ github.repository }}.
+
+            Review ONLY the changes introduced by the PR:
+              git log --oneline ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}
+              git diff ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}
+
+            Focus on:
+            1. **Logic errors** — incorrect conditions, off-by-one, null/undefined handling
+            2. **Security** — XSS, injection, auth bypass, exposed secrets
+            3. **Edge cases** — empty arrays, undefined props, race conditions
+            4. **Error handling** — uncaught promises, missing try/catch at boundaries
+            5. **Data integrity** — incorrect DB queries, missing validations
+            6. **React patterns** — missing keys, stale closures, infinite re-render loops
+
+            Do NOT flag: style preferences, formatting, TODOs, import ordering.
+
+            Rate each finding: BUG (must fix), NIT (minor), SUGGESTION (optional).
+            Quote the exact code (file + line), explain WHY, suggest the fix.
+            If everything looks good, say "No issues found" briefly.
+
+            PR title: ${{ github.event.pull_request.title }}
+            PR body: ${{ github.event.pull_request.body }}
+          safety-strategy: drop-sudo
+          sandbox: read-only
+
+  post-codex-feedback:
+    runs-on: ubuntu-latest
+    needs: codex-review
+    if: needs.codex-review.outputs.final_message != ''
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          CODEX_REVIEW: ${{ needs.codex-review.outputs.final_message }}
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: `## Codex Logic Review\n\n${process.env.CODEX_REVIEW}`,
+            });
+
+  # ─── Layer 3: Claude Convention Review (~$0.20–0.50) ──────
+  claude-review:
+    if: inputs.run-claude && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Review this PR for convention compliance.
+
+            If CLAUDE.md exists, read it for project conventions.
+            If ${{ inputs.review-conventions }} exists, read it for review-specific rules.
+
+            Focus on:
+            - Coding conventions defined in project docs
+            - Security patterns (auth checks on API routes, input validation)
+            - Component usage patterns (use project components, not raw HTML)
+            - Configuration patterns (no hardcoded values)
+            - File structure and naming conventions
+
+            Post your findings as a single PR comment. Categorise as:
+            - BUG: Convention violation that could cause issues
+            - NIT: Style/pattern inconsistency
+            - OK: Everything looks good (keep this brief)
+
+            If there are no issues, just say "Convention check passed" in one line.
+          claude_args: "--max-turns ${{ inputs.claude-max-turns }} --model ${{ inputs.claude-model }} --allowedTools Bash,Read,Glob,Grep"
