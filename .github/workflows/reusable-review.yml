@@ -34,7 +34,7 @@ on:
       codex-model:
         description: "OpenAI model for Codex logic review"
         type: string
-        default: "gpt-5.4-codex"
+        default: "gpt-5.4"
       run-claude:
         description: "Enable Claude convention review"
         type: boolean

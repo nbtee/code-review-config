@@ -25,7 +25,7 @@ This will:
 | Layer | What | Cost |
 |-------|------|------|
 | **Static checks** | `tsc --noEmit` + `eslint` | Free |
-| **Codex logic review** | OpenAI GPT-5.4 Codex scans for bugs, security issues, edge cases | ~$0.20/PR |
+| **Codex logic review** | OpenAI GPT-5.4 scans for bugs, security issues, edge cases | ~$0.20/PR |
 | **Claude convention review** | Claude checks PR against your `REVIEW.md` conventions | ~$0.35/PR |
 
 ### Weekly Audit (Monday 2am UTC)
@@ -78,7 +78,7 @@ If you prefer not to use the setup script:
 |-------|---------|-------------|
 | `run-static` | `true` | Run tsc + lint |
 | `run-codex` | `true` | Codex logic review |
-| `codex-model` | `gpt-5.4-codex` | OpenAI model for logic review |
+| `codex-model` | `gpt-5.4` | OpenAI model for logic review |
 | `run-claude` | `true` | Claude convention review |
 | `claude-model` | `claude-opus-4-6` | Claude model for convention review |
 | `claude-max-turns` | `10` | Max Claude turns per review |
