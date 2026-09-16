@@ -186,6 +186,14 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Without this the action tries to mint a Claude Code GitHub App token
+          # and dies with "401 Unauthorized - Claude Code is not installed on this
+          # repository" on any repo where that App is not installed (every repo in
+          # nbeetee-potentia, checked 2026-09-16). The run token already carries
+          # contents:read + pull-requests:write from this job's permissions block,
+          # which is all the reviewer needs to read the diff and post its comment.
+          # Installing the App is still fine — it just stops being a prerequisite.
+          github_token: ${{ github.token }}
           prompt: |
             Review this PR for convention compliance.
 
