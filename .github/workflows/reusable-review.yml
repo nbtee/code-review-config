@@ -46,9 +46,11 @@ on:
       claude-max-turns:
         # 10 was too few: on a 90-file PR the reviewer authenticated, read for 85 s and
         # died on 'Reached maximum number of turns (10)' before posting (atli #29, 2026-09-16).
+        # At 40 the same PR posted its review on turn 41 and the action failed the job anyway —
+        # the final answer counts as a turn. 60 leaves room; the 10-minute timeout bounds cost.
         description: "Max turns for Claude review"
         type: number
-        default: 40
+        default: 60
       node-version:
         description: "Node.js version for static checks"
         type: number
