@@ -44,9 +44,11 @@ on:
         type: string
         default: "claude-opus-4-6"
       claude-max-turns:
+        # 10 was too few: on a 90-file PR the reviewer authenticated, read for 85 s and
+        # died on 'Reached maximum number of turns (10)' before posting (atli #29, 2026-09-16).
         description: "Max turns for Claude review"
         type: number
-        default: 10
+        default: 40
       node-version:
         description: "Node.js version for static checks"
         type: number
